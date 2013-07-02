@@ -82,13 +82,11 @@ public class DefaultConfig {
   }
 
   private static void loadSetupConfig() {
-    setupTask.add("com.groupon.seleniumgridextras.tasks.KillAllIE");
     setupTask.add("com.groupon.seleniumgridextras.tasks.MoveMouse");
     defaultConfig.put("setup", setupTask);
   }
 
   private static void loadTeardownConfig() {
-    teardownTask.add("com.groupon.seleniumgridextras.tasks.KillAllIE");
     teardownTask.add("com.groupon.seleniumgridextras.tasks.MoveMouse");
     defaultConfig.put("teardown", teardownTask);
   }
