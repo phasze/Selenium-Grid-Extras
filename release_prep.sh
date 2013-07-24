@@ -1,10 +1,5 @@
-#!/bin/bash -x
-
-rm -rf current
-mkdir current
+#!/bin/bash -xe
 
 rm -rf SeleniumGridExtras/target/*
 
 mvn package
-
-cp SeleniumGridExtras/target/*.jar current/

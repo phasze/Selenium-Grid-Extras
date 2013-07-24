@@ -38,25 +38,22 @@
 package com.groupon.seleniumgridextras.tasks;
 
 
+import com.groupon.seleniumgridextras.downloader.Downloader;
+import com.groupon.seleniumgridextras.downloader.WdDownloader;
 import com.groupon.seleniumgridextras.grid.GridWrapper;
-import com.groupon.seleniumgridextras.RuntimeConfig;
-
-import org.apache.commons.io.FileUtils;
-
 import java.io.File;
-import java.io.IOException;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.util.HashMap;
+import com.google.gson.JsonObject;
+import com.groupon.seleniumgridextras.config.RuntimeConfig;
+
 import java.util.Map;
 
 public class DownloadWebdriver extends ExecuteOSTask {
 
-  public DownloadWebdriver(){
+  public DownloadWebdriver() {
     setEndpoint("/download_webdriver");
     setDescription("Downloads a version of WebDriver jar to local machine");
-    Map<String, String> params = new HashMap();
-    params.put("version", "Version of WebDriver to download, such as 2.33.0");
+    JsonObject params = new JsonObject();
+    params.addProperty("version", "Version of WebDriver to download, such as 2.33.0");
     setAcceptedParams(params);
     setRequestType("GET");
     setResponseType("json");
@@ -65,11 +62,14 @@ public class DownloadWebdriver extends ExecuteOSTask {
     setButtonText("Download WebDriver");
     setEnabledInGui(true);
 
-
     addResponseDescription("root_dir", "Directory to which JAR file was saved to");
-    addResponseDescription("file", "Filename on node's computer");
+    addResponseDescription("file", "Relative path to file on the node");
+    addResponseDescription("file_full_path", "Full path to file on node");
     addResponseDescription("source_url",
-                                    "Url from which the JAR was downloaded. If JAR file already exists, this will be blank, and download will be skipped");
+                           "Url from which the JAR was downloaded. If JAR file already exists, this will be blank, and download will be skipped");
+
+    getJsonResponse()
+        .addKeyValues("file_full_path", RuntimeConfig.getConfig().getWebdriver().getExecutablePath());
 
     getJsonResponse().addKeyValues("root_dir", GridWrapper.getWebdriverHome());
 
@@ -77,17 +77,34 @@ public class DownloadWebdriver extends ExecuteOSTask {
   }
 
   @Override
-  public String execute() {
-    return downloadWebdriverVersion(RuntimeConfig.getWebdriverVersion());
+  public JsonObject execute() {
+    return execute(RuntimeConfig.getConfig().getWebdriver().getVersion());
   }
 
   @Override
-  public String execute(String version) {
-    return downloadWebdriverVersion(version);
+  public JsonObject execute(String version) {
+    Downloader downloader = new WdDownloader(version);
+
+    getJsonResponse().addKeyValues("file", downloader.getDestinationFile());
+    getJsonResponse()
+        .addKeyValues("file_full_path", downloader.getDestinationFileFullPath().getAbsolutePath());
+
+    if (!downloader.getDestinationFileFullPath().exists()) {
+      Boolean downloaded = downloader.download();
+      getJsonResponse().addKeyValues("source_url", downloader.getSourceURL());
+
+      if (!downloaded) {
+        getJsonResponse().addKeyValues("error", downloader.getErrorMessage());
+      }
+    } else {
+      getJsonResponse().addKeyValues("out", "File already downloaded, will not download again");
+    }
+
+    return getJsonResponse().getJson();
   }
 
   @Override
-  public String execute(Map<String, String> parameter) {
+  public JsonObject execute(Map<String, String> parameter) {
 
     if (parameter.isEmpty() || !parameter.containsKey("version")) {
       return execute();
@@ -96,78 +113,23 @@ public class DownloadWebdriver extends ExecuteOSTask {
     }
   }
 
-  private String downloadWebdriverVersion(String version) {
-
-    String webdriverDir = GridWrapper.getWebdriverHome();
-    System.out.println("Downloading Driver to " + webdriverDir);
-    createWebdriverDir(webdriverDir);
-
-    try {
-      URL url = new URL(getUrl(version));
-      System.out.println("Source URL: " + url);
-      String jarFile = webdriverDir + "/" + version + ".jar";
-      System.out.println("Target file: " + jarFile);
-      File destination = new File(jarFile);
-
-      if (destination.exists()) {
-        System.out.println("File already exists, will not download");
-        getJsonResponse().addKeyValues("file", jarFile);
-        getJsonResponse().addKeyValues("out", "File already exist, no need to download again.");
-        return getJsonResponse().toString();
-      } else {
-        System.out.println("File does not exist, will download");
-        FileUtils.copyURLToFile(url, destination);
-        System.out.println("Download complete from " + url);
-
-        getJsonResponse().addKeyValues("file", jarFile);
-        getJsonResponse().addKeyValues("source_url", url.toString());
-
-        return getJsonResponse().toString();
-      }
-
-
-    } catch (MalformedURLException error) {
-      getJsonResponse().addKeyValues("error", error.toString());
-      return getJsonResponse().toString();
-    } catch (IOException error) {
-      getJsonResponse().addKeyValues("error", error.toString());
-      return getJsonResponse().toString();
-    }
-  }
-
-  private void createWebdriverDir(String dirString) {
-    File dir = new File(dirString);
-
-    if (dir.exists()) {
-      System.out.println(dirString + " already exists");
-      //Do nothing, it's already there
-    } else {
-      System.out.println(dirString + " does not yet exist. Creating it");
-      dir.mkdir();
-    }
-  }
-
-  private String getUrl(String version) {
-    String
-        fullUrl =
-        "http://selenium.googlecode.com/files/selenium-server-standalone-" + version + ".jar";
-    System.out.println("Will download from " + fullUrl);
-    return fullUrl;
-  }
 
   @Override
   public boolean initialize() {
 
     try {
+      System.out.println(GridWrapper.getCurrentWebDriverJarPath());
+      System.out.println(RuntimeConfig.getConfig().getWebdriver().getDirectory());
       File webdriverJar = new File(GridWrapper.getCurrentWebDriverJarPath());
-      File webdriverHome = new File(RuntimeConfig.getWebdriverParentDir());
+      File webdriverHome = new File(RuntimeConfig.getConfig().getWebdriver().getDirectory());
 
       if (!webdriverHome.exists()) {
-         webdriverHome.mkdir();
+        webdriverHome.mkdir();
       }
 
       if (!webdriverJar.exists()) {
-        downloadWebdriverVersion(GridWrapper.getWebdriverVersion());
+        System.out.println("no jar");
+        execute();
       }
 
 

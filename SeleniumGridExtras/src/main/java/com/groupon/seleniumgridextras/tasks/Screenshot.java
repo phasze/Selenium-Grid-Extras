@@ -37,7 +37,9 @@
 
 package com.groupon.seleniumgridextras.tasks;
 
-import com.groupon.seleniumgridextras.RuntimeConfig;
+import com.google.gson.JsonObject;
+import com.groupon.seleniumgridextras.config.RuntimeConfig;
+import net.coobird.thumbnailator.Thumbnails;
 import org.apache.commons.codec.binary.Base64;
 
 import javax.imageio.ImageIO;
@@ -58,9 +60,9 @@ public class Screenshot extends ExecuteOSTask {
   public Screenshot() {
     setEndpoint("/screenshot");
     setDescription("Take a full OS screen Screen Shot of the node");
-    Map<String, String> params = new HashMap();
-    params.put("width", "width");
-    params.put("height", "height");
+    JsonObject params = new JsonObject();
+    params.addProperty("width", "width");
+    params.addProperty("height", "height");
     setAcceptedParams(params);
     setRequestType("GET");
     setResponseType("json");
@@ -76,30 +78,33 @@ public class Screenshot extends ExecuteOSTask {
   }
 
   @Override
-  public String execute() {
+  public JsonObject execute() {
     return execute(new HashMap<String, String>());
   }
 
   @Override
-  public String execute(Map<String, String> parameter) {
+  public JsonObject execute(Map<String, String> parameter) {
 
     int width = parameter.containsKey("width") ? Integer.parseInt(parameter.get("width")) : 0;
     int height = parameter.containsKey("height") ? Integer.parseInt(parameter.get("height")) : 0;
-
-    return createScreenshot(width, height);
+    boolean keepFile = parameter.containsKey("keep") ? Boolean.parseBoolean(parameter.get("keep")) : true;
+    return createScreenshot(width, height, keepFile);
   }
 
-  private String createScreenshot(int width, int height) {
+  private JsonObject createScreenshot(int width, int height, boolean keepFile) {
     String filename;
     String encodedImage;
     try {
       BufferedImage screenshot = takeScreenshot();
-      if(width > 0 || height >0){
-        screenshot = createResizedCopy(screenshot, width, height, true);
+      if (width > 0 || height > 0) {
+        screenshot = createThumbnail(screenshot, width, height);
       }
       try {
-        filename = writeImageToDisk(screenshot);
-
+        if (keepFile) {
+          filename = writeImageToDisk(screenshot);
+        } else {
+          filename = "not_saved";
+        }
         ByteArrayOutputStream baos = writeImageToStream(screenshot);
 
         encodedImage = encodeStreamToBase64(baos);
@@ -108,16 +113,16 @@ public class Screenshot extends ExecuteOSTask {
 
       } catch (IOException e) {
         getJsonResponse().addKeyValues("error", "Error Saving image to file\n " + e);
-        return getJsonResponse().toString();
+        return getJsonResponse().getJson();
       }
       getJsonResponse().addKeyValues("file_type", "PNG");
       getJsonResponse().addKeyValues("file",
-          RuntimeConfig.getExposedDirectory() + "/" + filename);
+          RuntimeConfig.getConfig().getExposedDirectory() + "/" + filename);
       getJsonResponse().addKeyValues("image", encodedImage);
-      return getJsonResponse().toString();
+      return getJsonResponse().getJson();
     } catch (AWTException error) {
       getJsonResponse().addKeyValues("error", "Error with AWT Robot\n" + error);
-      return getJsonResponse().toString();
+      return getJsonResponse().getJson();
     }
   }
 
@@ -138,16 +143,18 @@ public class Screenshot extends ExecuteOSTask {
 
   private String writeImageToDisk(BufferedImage screenshot) throws IOException {
     String filename;
-    String directory = RuntimeConfig.getExposedDirectory();
+    String directory = RuntimeConfig.getConfig().getExposedDirectory();
     filename = createTimestampFilename();
     String fullPath = directory + "/" + filename;
     File outputFile = new File(fullPath);
+    outputFile.mkdirs();
     ImageIO.write(screenshot, "png", outputFile);
     return filename;
   }
 
   private String createTimestampFilename() {
-    String filename;Date date = new Date();
+    String filename;
+    Date date = new Date();
     SimpleDateFormat sdf = new SimpleDateFormat("MM_dd_yyyy_h_mm_ss_a");
     String formattedTimestamp = sdf.format(date);
     filename = "screenshot_" + formattedTimestamp + ".png";
@@ -160,18 +167,16 @@ public class Screenshot extends ExecuteOSTask {
     return robot.createScreenCapture(captureSize);
   }
 
-  private BufferedImage createResizedCopy(Image originalImage,
-                                          int scaledWidth, int scaledHeight,
-                                          boolean preserveAlpha) {
-    int imageType = preserveAlpha ? BufferedImage.TYPE_INT_RGB : BufferedImage.TYPE_INT_ARGB;
-    BufferedImage scaledBI = new BufferedImage(scaledWidth, scaledHeight, imageType);
-    Graphics2D g = scaledBI.createGraphics();
-    if (preserveAlpha) {
-      g.setComposite(AlphaComposite.Src);
+  private BufferedImage createThumbnail(BufferedImage originalImage, int width, int height) {
+    BufferedImage thumbnail = null;
+    try {
+      thumbnail = Thumbnails.of(originalImage)
+          .size(width, height)
+          .asBufferedImage();
+    } catch (IOException e) {
+      e.printStackTrace();
     }
-    g.drawImage(originalImage, 0, 0, scaledWidth, scaledHeight, null);
-    g.dispose();
-    return scaledBI;
+    return thumbnail;
   }
 
   @Override
