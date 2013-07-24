@@ -37,22 +37,20 @@
 
 package com.groupon.seleniumgridextras.tasks;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import com.groupon.seleniumgridextras.ExecuteCommand;
-import com.groupon.seleniumgridextras.JsonArrayBuilder;
-import com.groupon.seleniumgridextras.JsonWrapper;
 import com.groupon.seleniumgridextras.OSChecker;
+import com.groupon.seleniumgridextras.config.RuntimeConfig;
 
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
+import java.io.File;
 
 public class KillAllIE extends KillAllByName {
 
   public KillAllIE() {
     setEndpoint("/kill_ie");
     setDescription("Executes os level kill command on all instance of Internet Explorer");
-    Map<String, String> params = new HashMap();
+    JsonObject params = new JsonObject();
     setAcceptedParams(params);
     setRequestType("GET");
     setResponseType("json");
@@ -73,27 +71,26 @@ public class KillAllIE extends KillAllByName {
   }
 
   @Override
-  public String execute(String param) {
+  public JsonObject execute(String param) {
 
     if (OSChecker.isWindows()) {
       return killIEAndIEDriver();
     } else {
       getJsonResponse().addKeyValues("error", "Kill IE command is only implemented in Windows");
-      return getJsonResponse().toString();
+      return getJsonResponse().getJson();
     }
   }
 
 
-  private String killIEAndIEDriver() {
+  private JsonObject killIEAndIEDriver() {
 
-    Map<String, Object> killBrowserResult = JsonWrapper.parseJson(
-        ExecuteCommand.execRuntime(getWindowsKillCommand("iexplore.exe")));
+    JsonObject killBrowserResult = ExecuteCommand.execRuntime(getWindowsKillCommand("iexplore.exe"));
 
-    Map<String, Object> killDriverResult = JsonWrapper.parseJson(ExecuteCommand.execRuntime(
-        getWindowsKillCommand("IEDriverServer.exe")));
+    File ieDriverName = new File(RuntimeConfig.getConfig().getIEdriver().getExecutablePath());
 
+    JsonObject killDriverResult = ExecuteCommand.execRuntime(getWindowsKillCommand(ieDriverName.getName()));
 
-    List<Map> response = new LinkedList<Map>();
+    JsonArray response = new JsonArray();
     response.add(killBrowserResult);
     response.add(killDriverResult);
 
@@ -104,7 +101,7 @@ public class KillAllIE extends KillAllByName {
       getJsonResponse().addKeyValues("error", response);
     }
 
-    return getJsonResponse().toString();
+    return getJsonResponse().getJson();
 
   }
 

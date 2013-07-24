@@ -37,6 +37,7 @@
 
 package com.groupon.seleniumgridextras;
 
+import com.google.gson.JsonParser;
 import com.groupon.seleniumgridextras.tasks.ExecuteOSTask;
 import com.groupon.seleniumgridextras.tasks.KillAllByName;
 import org.junit.Before;
@@ -55,8 +56,8 @@ public class KillAllByNameTest {
   public void setUp() throws Exception {
     task = new KillAllByName();
     windowsCommand = "taskkill -F -IM test";
-    linuxCommnad = "killall -v -m test";
-    macCommand = linuxCommnad;
+    linuxCommnad = "killall -v -r test";
+    macCommand = "killall -v -m test";
   }
 
   @Test
@@ -86,10 +87,10 @@ public class KillAllByNameTest {
 
   @Test
   public void testGetJsonResponse() throws Exception {
-    assertEquals("{\"exit_code\":0,\"error\":[],\"out\":[]}",
-                 task.getJsonResponse().toString());
+    assertEquals(new JsonParser().parse("{\"exit_code\":0,\"error\":[],\"out\":[]}"),
+        task.getJsonResponse().getJson());
 
-    assertEquals(3, task.getJsonResponse().getKeyDescriptions().keySet().size());
+    assertEquals(3, task.getJsonResponse().getKeyDescriptions().entrySet().size());
 
   }
 
@@ -100,6 +101,6 @@ public class KillAllByNameTest {
 
   @Test
   public void testGetNotWindowsCommand() throws Exception {
-    assertEquals("killall -v -m test", task.getLinuxCommand("test"));
+    assertEquals("killall -v -r test", task.getLinuxCommand("test"));
   }
 }
